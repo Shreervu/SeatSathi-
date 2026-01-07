@@ -1,0 +1,7 @@
+{
+  "name": "SeatSathi",
+  "description": "An expert AI Admission Counselor for Indian engineering aspirants using Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
