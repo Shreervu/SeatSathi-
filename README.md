@@ -203,7 +203,6 @@ This project is open source and available under the [MIT License](LICENSE).
 ---
 
 <div align="center">
-  <p>Made with love for Karnataka Engineering Aspirants</p>
   <p>
     <strong>SeatSathi</strong> - Your AI Companion for KCET Counselling
   </p>
