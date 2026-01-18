@@ -122,7 +122,7 @@ npm run preview
 | **React 18** | Frontend UI framework |
 | **TypeScript** | Type-safe development |
 | **Vite** | Fast build tool & dev server |
-| **Google Gemini 2.0 Flash** | Conversational AI & voice processing |
+| **Google Gemini 2.5-flash-native-audio-dialog** | Conversational AI & voice processing |
 | **Firebase** | Authentication (Email/Google) & Firestore |
 | **IndexedDB (Dexie.js)** | Local database for cutoff data |
 | **PDF.js** | PDF parsing and text extraction |
