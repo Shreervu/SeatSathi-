@@ -1,30 +1,22 @@
-/**
- * SeatSathi IndexedDB Database
- * Fast local database for KCET cutoff data with indexed queries
- * Uses Dexie.js for optimal performance
- */
-
-import { Dexie, Table } from 'dexie';
-
-// ============= Database Schema Types =============
+import Dexie, { Table } from 'dexie';
 
 export interface CollegeRecord {
   id?: number;
-  code: string;           // E001, E002, etc.
-  name: string;           // Full college name
-  location: string;       // Normalized: bangalore, mysore, etc.
-  locationKeywords: string[]; // For search
+  code: string;
+  name: string;
+  location: string;
+  locationKeywords: string[];
 }
 
 export interface BranchRecord {
   id?: number;
-  collegeCode: string;    // Foreign key to college
-  collegeName: string;    // Denormalized for faster queries
-  branchName: string;     // Original branch name
-  branchNormalized: string; // CS-PURE, CS-AIML, EC-PURE, etc.
-  branchCategory: string; // CS, EC, ME, CV, IS, ROBOTICS, etc.
-  isPure: boolean;        // Is this a "pure" branch?
-  location: string;       // Denormalized for faster queries
+  collegeCode: string;
+  collegeName: string;
+  branchName: string;
+  branchNormalized: string;
+  branchCategory: string;
+  isPure: boolean;
+  location: string;
 }
 
 export interface CutoffRecord {
@@ -36,13 +28,11 @@ export interface CutoffRecord {
   branchCategory: string;
   isPure: boolean;
   location: string;
-  year: string;           // "2024" or "2025"
-  round: string;          // "R1", "R2", "R3"
-  category: string;       // GM, 2AG, 3BG, SCG, etc.
-  cutoffRank: number;     // The actual cutoff rank
+  year: string;
+  round: string;
+  category: string;
+  cutoffRank: number;
 }
-
-// ============= Database Class =============
 
 class SeatSathiDB extends Dexie {
   colleges!: Table<CollegeRecord>;
@@ -52,20 +42,16 @@ class SeatSathiDB extends Dexie {
   constructor() {
     super('SeatSathiDB');
     
-    // Version 2: Updated branch normalization to handle "B Tech in CS" patterns (e.g., RV University)
-    // Upgrading from v1 will trigger data re-population
     this.version(2).stores({
       colleges: '++id, code, name, location, *locationKeywords',
       branches: '++id, collegeCode, branchNormalized, branchCategory, isPure, location, [branchCategory+location], [branchCategory+isPure]',
       cutoffs: '++id, collegeCode, branchNormalized, branchCategory, isPure, location, year, round, category, cutoffRank, [branchCategory+location+category], [branchCategory+category+year], [location+branchCategory+category]'
     }).upgrade(async () => {
-      // Clear all data to force re-population with new normalization logic
       await this.colleges.clear();
       await this.branches.clear();
       await this.cutoffs.clear();
     });
     
-    // Keep v1 schema for migration path
     this.version(1).stores({
       colleges: '++id, code, name, location, *locationKeywords',
       branches: '++id, collegeCode, branchNormalized, branchCategory, isPure, location, [branchCategory+location], [branchCategory+isPure]',
@@ -76,11 +62,6 @@ class SeatSathiDB extends Dexie {
 
 export const db = new SeatSathiDB();
 
-// ============= Helper Functions =============
-
-/**
- * Extract location from college name
- */
 export function extractLocation(collegeName: string): string {
   const name = collegeName.toLowerCase();
   
@@ -103,34 +84,25 @@ export function extractLocation(collegeName: string): string {
   if (name.includes('chikmagalur') || name.includes('chikkamagaluru')) return 'chikmagalur';
   if (name.includes('udupi')) return 'udupi';
   
-  return 'karnataka'; // Default
+  return 'karnataka';
 }
 
-/**
- * Get location keywords for search
- */
 export function getLocationKeywords(collegeName: string): string[] {
   const keywords: string[] = [];
   const name = collegeName.toLowerCase();
   
-  // Add detected location
   keywords.push(extractLocation(collegeName));
   
-  // Add city name variations
   if (name.includes('bangalore') || name.includes('bengaluru')) {
     keywords.push('bangalore', 'bengaluru', 'blr');
   }
   if (name.includes('mysore') || name.includes('mysuru')) {
     keywords.push('mysore', 'mysuru');
   }
-  // ... add more as needed
   
   return [...new Set(keywords)];
 }
 
-/**
- * Normalize branch name to standard category
- */
 export function normalizeBranchName(branchName: string): { normalized: string; category: string; isPure: boolean } {
   const bLower = branchName.toLowerCase();
   
@@ -242,7 +214,10 @@ export function normalizeBranchName(branchName: string): { normalized: string; c
  */
 export function normalizeCategory(cat: string): string {
   let c = cat.toUpperCase().trim();
-  if (['1', '2A', '2B', '3A', '3B', 'GM', 'SC', 'ST'].includes(c)) {
+  // GM should stay as GM (not GMG) - it's already a valid category
+  if (c === 'GM') return 'GM';
+  // Default to General suffix if missing for numbered categories
+  if (['1', '2A', '2B', '3A', '3B', 'SC', 'ST'].includes(c)) {
     return c + 'G';
   }
   return c;
@@ -289,11 +264,8 @@ export function mapCourseToCategory(courseInput: string): string[] {
     return ['AR'];
   }
   
-  // Default - return as-is
   return [cLower.toUpperCase()];
 }
-
-// ============= Database Check =============
 
 export async function isDatabasePopulated(): Promise<boolean> {
   const count = await db.cutoffs.count();
@@ -307,8 +279,6 @@ export async function getDatabaseStats(): Promise<{ colleges: number; branches: 
     cutoffs: await db.cutoffs.count()
   };
 }
-
-// ============= Clear Database =============
 
 export async function clearDatabase(): Promise<void> {
   await db.colleges.clear();

@@ -1,7 +1,6 @@
 <div align="center">
-  <img width="1200" height="475" alt="SeatSathi Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
   
-  # 🎓 SeatSathi - AI-Powered KCET Admission Counselor
+  # SeatSathi - AI-Powered KCET Admission Counselor
   
   [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=white)](https://react.dev/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -10,16 +9,15 @@
   
   **Navigate your KCET engineering admissions with confidence using AI-powered guidance.**
   
-  [Live Demo](#) • [Features](#-features) • [Getting Started](#-getting-started) • [Tech Stack](#%EF%B8%8F-tech-stack)
+  [Live Demo](#) | [Features](#features) | [Getting Started](#getting-started) | [Tech Stack](#tech-stack)
 </div>
 
----
 
-## 📖 About
+## About
 
 **SeatSathi** is an AI-powered admission counselor specifically designed for **KCET (Karnataka Common Entrance Test)** aspirants. It helps students navigate the complex college admission process by providing instant cutoff analysis, college predictions, and personalized recommendations based on their rank, category, and preferences.
 
-### 🎯 Problem We Solve
+### Problem We Solve
 
 Every year, thousands of Karnataka students struggle with:
 - Understanding complex cutoff data across multiple rounds
@@ -31,39 +29,48 @@ Every year, thousands of Karnataka students struggle with:
 
 ---
 
-## ✨ Features
+## Features
 
-### 🗣️ Voice-First Interface
+### Voice-First Interface
 - Natural conversation with AI using voice input
-- Supports **English** and **Hinglish** for better accessibility
+- Supports **English**, **Hinglish**, and **Kannada** for better accessibility
 - Real-time audio visualization for engaging interactions
+- Powered by **Google Gemini 2.0 Flash** AI
 
-### 📊 Real KCET Data
+### Real KCET Data
 - Verified cutoff data from **2024 & 2025** counselling rounds
-- Comprehensive database covering **116+ colleges** across Karnataka
+- Comprehensive database covering **250+ colleges** across Karnataka
 - Multi-round data (R1, R2, R3) for accurate predictions
+- Supports KCET and COMEDK PDF analysis
 
-### 🎯 Smart College Matching
+### Smart College Matching
 - Intelligent filtering based on:
   - **Rank** (e.g., 5000, 12000)
-  - **Category** (GM, 2AG, 3BG, SCG, STG, etc.)
-  - **Course Preference** (CS, EC, Mechanical, Civil, etc.)
+  - **Category** (GM, 1G, 2AG, 2BG, 3AG, 3BG, SCG, STG, etc.)
+  - **Course Preference** (CS, EC, Mechanical, Civil, AI/ML, Data Science, etc.)
   - **Location** (Bangalore, Mysore, or Anywhere)
 - Probability-based recommendations (High/Medium/Low chance)
 
-### 📄 PDF Analysis
-- Upload official KCET cutoff PDFs
+### PDF Analysis & Export
+- Upload official KCET/COMEDK cutoff PDFs
 - AI parses thousands of rows automatically
 - Extract specific college/branch cutoffs from documents
+- **Export college recommendations to PDF** for offline reference
 
-### 🎨 Modern UI/UX
-- Clean, responsive design with dark theme
-- Visual college recommendation cards
+### User Authentication
+- **Firebase Authentication** with Email/Password and Google Sign-In
+- Secure user accounts for personalized experience
+- Cloud sync capabilities via Firestore
+
+### Modern UI/UX
+- Clean, responsive design with **dark and light theme toggle**
+- Visual college recommendation cards with flip animations
 - Real-time transcription display
+- Mobile-friendly responsive layout
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -108,20 +115,23 @@ npm run preview
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Technology | Purpose |
 |------------|---------|
 | **React 18** | Frontend UI framework |
 | **TypeScript** | Type-safe development |
 | **Vite** | Fast build tool & dev server |
-| **Google Gemini AI** | Conversational AI & voice processing |
+| **Google Gemini 2.0 Flash** | Conversational AI & voice processing |
+| **Firebase** | Authentication (Email/Google) & Firestore |
+| **IndexedDB (Dexie.js)** | Local database for cutoff data |
 | **PDF.js** | PDF parsing and text extraction |
+| **jsPDF** | PDF export for recommendations |
 | **Tailwind CSS** | Utility-first styling |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 seatsathi/
@@ -133,7 +143,11 @@ seatsathi/
 │   └── Visualizer.tsx      # Audio visualization component
 ├── services/
 │   ├── audioUtils.ts       # Audio processing utilities
-│   └── toolService.ts      # AI tool implementations
+│   ├── toolService.ts      # AI tool implementations
+│   ├── firebase.ts         # Firebase auth & Firestore
+│   ├── database.ts         # IndexedDB schema (Dexie.js)
+│   ├── dbPopulate.ts       # Database population scripts
+│   └── pdfExport.ts        # PDF export functionality
 ├── KCETcutoffdata/
 │   ├── collegeData.ts      # Main data aggregator
 │   └── colleges[1-116].ts  # Individual college data files
@@ -142,7 +156,7 @@ seatsathi/
 
 ---
 
-## 🔧 How It Works
+## How It Works
 
 1. **User Input**: Student provides their KCET rank, category, and course preferences via voice or text
 2. **AI Processing**: Gemini AI processes the query and determines the appropriate action
@@ -153,17 +167,18 @@ seatsathi/
 
 ---
 
-## 📊 Data Coverage
+## Data Coverage
 
 - **Years**: 2024, 2025 KCET counselling data
 - **Rounds**: R1, R2, R3 cutoffs
-- **Categories**: GM, 2AG, 2BG, 3AG, 3BG, SCG, STG, and more
-- **Colleges**: 116+ engineering colleges across Karnataka
-- **Branches**: CS, EC, ME, CV, IS, and various specializations
+- **Categories**: GM, 1G, 2AG, 2BG, 3AG, 3BG, SCG, STG, GMH, GMR, and more
+- **Colleges**: 250+ engineering colleges across Karnataka
+- **Branches**: CS, EC, ME, CV, IS, AI/ML, Data Science, Cyber Security, and various specializations
+- **Languages**: English, Hinglish, and Kannada support
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -175,20 +190,20 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 SeatSathi AI is currently under development. Responses are generated by AI and may vary. **Please verify important details from official KCET sources before making admission decisions.**
 
 ---
 
-## 📝 License
+## License
 
 This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
 <div align="center">
-  <p>Made with ❤️ for Karnataka Engineering Aspirants</p>
+  <p>Made with love for Karnataka Engineering Aspirants</p>
   <p>
     <strong>SeatSathi</strong> - Your AI Companion for KCET Counselling
   </p>

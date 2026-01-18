@@ -1,8 +1,3 @@
-/**
- * Fast Query Service - Uses IndexedDB for O(log n) queries
- * Replaces the old O(n) iteration through all colleges
- */
-
 import { db, normalizeCategory, mapCourseToCategory, CutoffRecord } from './database';
 import { CollegeRecommendation } from '../types';
 
@@ -12,39 +7,6 @@ export interface QueryResult {
   totalRecordsScanned: number;
 }
 
-/**
- * Normalize location name to match database format
- * Handles common variations like bengaluru/bengalore -> bangalore
- */
-function normalizeLocation(loc: string): string {
-  const l = loc.toLowerCase().trim();
-  
-  // Map common variations to standard database format
-  const locationMappings: { [key: string]: string } = {
-    'bengaluru': 'bangalore',
-    'bengalore': 'bangalore',
-    'blr': 'bangalore',
-    'mysuru': 'mysore',
-    'mangaluru': 'mangalore',
-    'hubballi': 'hubli',
-    'dharwad': 'dharwar',
-    'belagavi': 'belgaum',
-    'belgavi': 'belgaum',
-    'shivamogga': 'shimoga',
-    'tumakuru': 'tumkur',
-    'kalaburagi': 'gulbarga',
-    'vijayapura': 'bijapur',
-    'ballari': 'bellary',
-    'raichur': 'raichur',
-    'davangere': 'davanagere'
-  };
-  
-  return locationMappings[l] || l;
-}
-
-/**
- * Fast college matching using indexed database queries
- */
 export async function findMatchingCollegesFast(
   rank: number,
   category: string,
@@ -55,8 +17,7 @@ export async function findMatchingCollegesFast(
   
   const normCat = normalizeCategory(category);
   const courseCategories = mapCourseToCategory(course);
-  // Normalize location to handle bengaluru/bangalore, mysuru/mysore etc.
-  const normLoc = normalizeLocation(location);
+  const normLoc = location.toLowerCase().trim();
   
   // Build query based on filters
   let query = db.cutoffs.where('branchCategory').anyOf(courseCategories);

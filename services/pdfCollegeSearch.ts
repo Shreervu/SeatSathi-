@@ -1,12 +1,5 @@
-/**
- * PDF College Search Service - KCET Cutoff Parser
- * Properly parses KCET counseling cutoff PDFs with tabular format
- * Supports 2024/2025 cutoffs and college name normalization
- */
-
 import { CollegeRecommendation } from '../types';
 
-// ============= Types =============
 interface ParsedCollegeEntry {
   code: string;           // E001, E002, E285 (RV University), etc.
   name: string;
@@ -97,7 +90,7 @@ const COLLEGE_CODES: Record<string, string> = {
   'E072': 'T John Institute of Technology, Bangalore',
   'E073': 'Impact Engineering College, Bangalore',
   'E074': 'Atria Institute of Technology, Bangalore',
-  // RV University and variants (CRITICAL)
+  // RV University and variants 
   'E285': 'RV University, Bangalore',
   'E286': 'RV College of Architecture, Bangalore',
   'E295': 'RV Institute of Technology and Management, Bangalore',

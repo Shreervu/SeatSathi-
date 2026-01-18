@@ -1,15 +1,44 @@
-
 import { CollegeRecommendation, KcetData } from "../types";
-import { KCET_DATA } from "../collegeData";
+import { findMatchingCollegesFast, getSpecificCollegeCutoffFast } from "./dbQuery";
+import { ensureDatabaseReady } from "./dbPopulate";
+import { db } from "./database";
+import { parsePdfCollegeData, searchPdfColleges, searchPdfByCollegeName, hasPdfData, getPdfCollegeCount } from "./pdfCollegeSearch";
 
-// --- Tool Implementations ---
+let useDatabase = false;
+let dbInitPromise: Promise<boolean> | null = null;
+let cachedKCETData: KcetData | null = null;
+
+async function getKCETData(): Promise<KcetData> {
+  if (cachedKCETData) return cachedKCETData;
+  const { loadKCETData } = await import('../KCETcutoffdata/collegeDataLazy');
+  cachedKCETData = await loadKCETData() as KcetData;
+  return cachedKCETData;
+}
+
+let currentPdfText: string = '';
+
+export function setPdfTextForSearch(text: string): number {
+  currentPdfText = text;
+  const parsed = parsePdfCollegeData(text);
+  console.log(`Parsed ${parsed.length} entries from PDF for search`);
+  return parsed.length;
+}
+
+export async function initDatabase(): Promise<boolean> {
+  if (dbInitPromise) return dbInitPromise;
+  
+  dbInitPromise = ensureDatabaseReady();
+  useDatabase = await dbInitPromise;
+  console.log(`Database mode: ${useDatabase ? 'ENABLED (fast)' : 'DISABLED (fallback)'}`);
+  return useDatabase;
+}
 
 const normalizeLocation = (loc: string): string => loc.toLowerCase().trim();
 const normalizeCategory = (cat: string): string => {
   let c = cat.toUpperCase().trim();
-  // Default to General if suffix is missing for common categories
-  if (['1', '2A', '2B', '3A', '3B', 'GM', 'SC', 'ST'].includes(c)) {
-      return c + 'G'; // e.g., 2A -> 2AG
+  if (c === 'GM') return 'GM';
+  if (['1', '2A', '2B', '3A', '3B', 'SC', 'ST'].includes(c)) {
+      return c + 'G';
   }
   return c;
 };
@@ -17,13 +46,111 @@ const normalizeCategory = (cat: string): string => {
 // Remove special characters, spaces, dots for fuzzy matching
 const normalizeForSearch = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+// Normalize branch names to standard codes for grouping same courses
+const normalizeBranchName = (branchName: string): string => {
+  const bLower = branchName.toLowerCase();
+  
+  // Pure CS variants - includes "B Tech in CS", "BTech in CS", patterns ending with " cs" etc.
+  if ((bLower.includes('computer science') && bLower.includes('engineering')) ||
+      (bLower.startsWith('cs ') && !bLower.includes('ai') && !bLower.includes('cyber') && !bLower.includes('data')) ||
+      bLower === 'cs computers' || bLower === 'cse' ||
+      (bLower.includes('computer') && !bLower.includes('ai') && !bLower.includes('cyber') && !bLower.includes('data') && !bLower.includes('business')) ||
+      (bLower.includes('tech') && bLower.endsWith(' cs')) ||
+      (bLower.includes('tech') && bLower.includes(' in cs'))) {
+    return 'CS-PURE';
+  }
+  
+  // CS with AI/ML
+  if (bLower.includes('artificial') || bLower.includes('aiml') || bLower.includes('ai ml') || 
+      bLower.includes('machine learning') || (bLower.includes('cs') && bLower.includes('ai'))) {
+    return 'CS-AIML';
+  }
+  
+  // CS with Data Science
+  if (bLower.includes('data science') || bLower.includes('data engineering') || 
+      (bLower.includes('cs') && bLower.includes('data'))) {
+    return 'CS-DATA';
+  }
+  
+  // CS Cyber Security
+  if (bLower.includes('cyber') || bLower.includes('security')) {
+    return 'CS-CYBER';
+  }
+  
+  // CS Business Systems
+  if (bLower.includes('business') || bLower.includes('bs')) {
+    return 'CS-BS';
+  }
+  
+  // Information Science
+  if (bLower.includes('information science') || bLower.startsWith('is ') || bLower === 'ise') {
+    return 'IS-PURE';
+  }
+  
+  // Pure EC
+  if ((bLower.includes('electronics') && bLower.includes('communication')) ||
+      bLower.startsWith('ec ') || bLower === 'ece') {
+    return 'EC-PURE';
+  }
+  
+  // Pure ME
+  if (bLower.includes('mechanical') || bLower.startsWith('me ')) {
+    return 'ME-PURE';
+  }
+  
+  // Civil
+  if (bLower.includes('civil') || bLower.startsWith('cv ')) {
+    return 'CV-PURE';
+  }
+  
+  // Electrical
+  if (bLower.includes('electrical') && !bLower.includes('electronics')) {
+    return 'EE-PURE';
+  }
+  
+  // Robotics
+  if (bLower.includes('robotics') || bLower.includes('automation')) {
+    return 'ROBOTICS';
+  }
+  
+  return bLower; // Return normalized lowercase for other branches
+};
+
+// Check if branch is a "pure" version of the requested course
+const isPureBranch = (branchName: string, courseInput: string): boolean => {
+  const normalized = normalizeBranchName(branchName);
+  const cLower = courseInput.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  if (['cs', 'cse', 'computer', 'computerscience'].includes(cLower)) {
+    return normalized === 'CS-PURE';
+  }
+  if (['is', 'ise', 'it', 'information', 'informationscience'].includes(cLower)) {
+    return normalized === 'IS-PURE';
+  }
+  if (['ec', 'ece', 'electronics'].includes(cLower)) {
+    return normalized === 'EC-PURE';
+  }
+  if (['me', 'mech', 'mechanical'].includes(cLower)) {
+    return normalized === 'ME-PURE';
+  }
+  if (['cv', 'civil', 'ce'].includes(cLower)) {
+    return normalized === 'CV-PURE';
+  }
+  if (['ee', 'electrical'].includes(cLower)) {
+    return normalized === 'EE-PURE';
+  }
+  if (['robotics', 'automation', 'ra'].includes(cLower)) {
+    return normalized === 'ROBOTICS';
+  }
+  return true; // Default to true for unknown courses
+};
+
 // Helper to determine if a branch matches the user's course request
 const isBranchMatch = (branchName: string, courseInput: string): boolean => {
   const bLower = branchName.toLowerCase();
   const cLower = courseInput.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   // CS / Computer Science matchers
-  // Added "bw b tech" and generic inclusions to catch variations like "BW B Tech in CS"
   if (['cs', 'cse', 'computer', 'computerscience'].includes(cLower)) {
     return (
       bLower.startsWith('cs ') || 
@@ -35,7 +162,9 @@ const isBranchMatch = (branchName: string, courseInput: string): boolean => {
       bLower.includes('information science') ||
       bLower.startsWith('is ') || 
       bLower.startsWith('it ') ||
-      (bLower.includes('cs') && bLower.includes('tech')) // Matches "BW B Tech in CS"
+      (bLower.includes('cs') && bLower.includes('tech')) ||
+      bLower.endsWith(' cs') ||
+      bLower.includes(' in cs')
     );
   }
 
@@ -55,14 +184,20 @@ const isBranchMatch = (branchName: string, courseInput: string): boolean => {
     );
   }
 
-  // Mech
+  // Mech - but NOT robotics on its own (robotics is separate course)
   if (['me', 'mech', 'mechanical'].includes(cLower)) {
-    return bLower.startsWith('me ') || bLower.includes('mechanical') || bLower.includes('automobile') || bLower.includes('robotics');
+    // Match mechanical but not robotics-specific courses
+    return bLower.startsWith('me ') || bLower.includes('mechanical') || bLower.includes('automobile');
   }
 
   // Civil
   if (['cv', 'civil', 'ce'].includes(cLower)) {
     return bLower.startsWith('cv ') || bLower.startsWith('ce ') || bLower.includes('civil') || bLower.includes('construction');
+  }
+
+  // Robotics and Automation
+  if (['robotics', 'automation', 'ra', 'robot'].includes(cLower)) {
+    return bLower.includes('robotics') || bLower.includes('automation') || bLower.includes('robot');
   }
 
   // Default fuzzy match
@@ -94,17 +229,117 @@ const getCutoffRange = (branchData: any, year: string, category: string): { rang
   return { range: `${min} - ${max}`, sortValue };
 };
 
-export const findMatchingColleges = (
+/**
+ * Find matching colleges - uses IndexedDB for fast queries when available
+ * Falls back to in-memory iteration if database not ready
+ * Also searches PDF data if available
+ * Supports multiple courses and locations (comma-separated)
+ */
+export const findMatchingColleges = async (
   rank: number,
   category: string,
   course: string,
   location: string
-): CollegeRecommendation[] => {
+): Promise<CollegeRecommendation[]> => {
+  const startTime = performance.now();
+  
+  // Parse multiple courses and locations
+  const courses = course.split(',').map(c => c.trim()).filter(c => c.length > 0);
+  const locations = location.split(',').map(l => l.trim()).filter(l => l.length > 0);
+  
+  console.log(`Searching for courses: [${courses.join(', ')}] in locations: [${locations.join(', ')}]`);
+  
+  // Collect results from all course/location combinations
+  const allResults: CollegeRecommendation[] = [];
+  const seenKeys = new Set<string>();
+  
+  for (const singleCourse of courses) {
+    for (const singleLocation of locations) {
+      let results: CollegeRecommendation[] = [];
+      
+      // Try to use database for fast queries
+      if (useDatabase) {
+        try {
+          const result = await findMatchingCollegesFast(rank, category, singleCourse, singleLocation);
+          console.log(`[DB Query] Found ${result.recommendations.length} colleges for ${singleCourse}/${singleLocation} in ${result.queryTimeMs}ms`);
+          results = result.recommendations;
+        } catch (error) {
+          console.warn('Database query failed, falling back to in-memory:', error);
+          results = await findMatchingCollegesLegacy(rank, category, singleCourse, singleLocation);
+        }
+      } else {
+        results = await findMatchingCollegesLegacy(rank, category, singleCourse, singleLocation);
+      }
+      
+      // Also search PDF data if available
+      if (hasPdfData()) {
+        const pdfResults = searchPdfColleges(rank, category, singleCourse, singleLocation);
+        console.log(`[PDF Search] Found ${pdfResults.length} additional colleges from uploaded PDF`);
+        results = [...results, ...pdfResults];
+      }
+      
+      // Add unique results, tagging with course and location
+      for (const rec of results) {
+        const uniqueKey = `${rec.collegeName}|${rec.branch}|${rec.cutoff2025}`;
+        if (!seenKeys.has(uniqueKey)) {
+          seenKeys.add(uniqueKey);
+          // Add course/location metadata for filtering
+          allResults.push({
+            ...rec,
+            searchCourse: singleCourse,
+            searchLocation: singleLocation
+          } as CollegeRecommendation & { searchCourse: string; searchLocation: string });
+        }
+      }
+    }
+  }
+  
+  // Sort combined results
+  const sorted = allResults.sort((a, b) => {
+    const getMin = (rangeStr: string) => {
+      if(rangeStr === "N/A") return 999999;
+      const parts = rangeStr.split(' - ');
+      return parseInt(parts[0]);
+    };
+    
+    // Pure branches first
+    const aIsPure = (a as any).isPure ? 1 : 0;
+    const bIsPure = (b as any).isPure ? 1 : 0;
+    if (aIsPure !== bIsPure) return bIsPure - aIsPure;
+    
+    // Higher chance first
+    const chanceOrder = { 'High': 0, 'Medium': 1, 'Low': 2 };
+    const chanceDiff = chanceOrder[a.chance] - chanceOrder[b.chance];
+    if (chanceDiff !== 0) return chanceDiff;
+
+    const valA = getMin(a.cutoff2025) !== 999999 ? getMin(a.cutoff2025) : getMin(a.cutoff2024);
+    const valB = getMin(b.cutoff2025) !== 999999 ? getMin(b.cutoff2025) : getMin(b.cutoff2024);
+    
+    const diffA = valA - rank;
+    const diffB = valB - rank;
+
+    return Math.abs(diffA) - Math.abs(diffB);
+  });
+  
+  console.log(`Total unique results: ${sorted.length} in ${(performance.now() - startTime).toFixed(2)}ms`);
+  return sorted;
+};
+
+/**
+ * Legacy in-memory search (fallback)
+ */
+const findMatchingCollegesLegacy = async (
+  rank: number,
+  category: string,
+  course: string,
+  location: string
+): Promise<CollegeRecommendation[]> => {
   const normLoc = normalizeLocation(location);
   const normCat = normalizeCategory(category);
   
   const recommendations: CollegeRecommendation[] = [];
-  const data = KCET_DATA as KcetData;
+  const seenColleges = new Map<string, CollegeRecommendation>(); // Track unique college+branch combos
+  const data = await getKCETData();
 
   Object.values(data.colleges).forEach((college) => {
     // Location Filter
@@ -112,36 +347,94 @@ export const findMatchingColleges = (
         if (!college.name.toLowerCase().includes(normLoc)) return;
     }
 
+    // Group branches by normalized name to merge same courses
+    const branchGroups = new Map<string, { branchData: any, originalName: string }[]>();
+    
     Object.entries(college.branches).forEach(([branchName, branchData]) => {
         if (!isBranchMatch(branchName, course)) return;
-
-        const data2025 = getCutoffRange(branchData, '2025', normCat);
-        const data2024 = getCutoffRange(branchData, '2024', normCat);
+        
+        const normalizedBranch = normalizeBranchName(branchName);
+        if (!branchGroups.has(normalizedBranch)) {
+          branchGroups.set(normalizedBranch, []);
+        }
+        branchGroups.get(normalizedBranch)!.push({ branchData, originalName: branchName });
+    });
+    
+    // Process each branch group - merge data from same-type branches
+    branchGroups.forEach((branches, normalizedBranch) => {
+        // Collect all cutoff data from all variants of this branch
+        let best2025: { range: string, sortValue: number } = { range: "N/A", sortValue: 999999 };
+        let best2024: { range: string, sortValue: number } = { range: "N/A", sortValue: 999999 };
+        let displayBranchName = branches[0].originalName;
+        
+        branches.forEach(({ branchData, originalName }) => {
+            const data2025 = getCutoffRange(branchData, '2025', normCat);
+            const data2024 = getCutoffRange(branchData, '2024', normCat);
+            
+            // Take the best (lowest rank) cutoff for each year
+            if (data2025.sortValue < best2025.sortValue) {
+              best2025 = data2025;
+              if (data2025.sortValue !== 999999) displayBranchName = originalName;
+            }
+            if (data2024.sortValue < best2024.sortValue) {
+              best2024 = data2024;
+              if (best2025.sortValue === 999999 && data2024.sortValue !== 999999) {
+                displayBranchName = originalName;
+              }
+            }
+        });
 
         // We need at least one cutoff to recommend
-        if (data2025.sortValue === 999999 && data2024.sortValue === 999999) return;
+        if (best2025.sortValue === 999999 && best2024.sortValue === 999999) return;
 
-        const refCutoff = data2025.sortValue !== 999999 ? data2025.sortValue : data2024.sortValue;
-        const margin = refCutoff - rank;
+        const refCutoff = best2025.sortValue !== 999999 ? best2025.sortValue : best2024.sortValue;
+        
+        // Updated chance calculation based on new logic
+        // refCutoff is the college's cutoff rank (lower is better/harder)
+        // rank is the user's rank
+        const diff = refCutoff - rank; // positive means college cutoff > user rank (easier to get)
         
         let chance: 'High' | 'Medium' | 'Low' = 'Low';
-        if (margin >= 2000) chance = 'High';       
-        else if (margin >= 0) chance = 'Medium';   
-        else chance = 'Low';                       
+        
+        // High: if college cutoff is 1000+ higher than user's rank (user has better rank than needed)
+        // Example: user rank 15000, college cutoff 16000+ -> High chance
+        if (diff >= 1000) {
+          chance = 'High';
+        }
+        // Medium: if college cutoff is within 1000 above to 1000 below user's rank
+        // Example: user rank 10000, college cutoff 9000-11000 -> Medium chance
+        else if (diff >= -1000 && diff < 1000) {
+          chance = 'Medium';
+        }
+        // Low: if college cutoff is more than 1000 lower than user's rank
+        // Example: user rank 10000, college cutoff < 9000 -> Low chance (college is too competitive)
+        else {
+          chance = 'Low';
+        }
+        
+        // Check if this is a pure branch
+        const isPure = isPureBranch(displayBranchName, course);
 
-        recommendations.push({
-            collegeName: college.name,
-            branch: branchName,
-            cutoff2025: data2025.range,
-            cutoff2024: data2024.range,
-            chance,
-            location: college.name.includes("Bangalore") ? "Bangalore" : "Karnataka"
-        });
+        // Create unique key for deduplication
+        const uniqueKey = `${college.name}|${normalizedBranch}`;
+        
+        if (!seenColleges.has(uniqueKey)) {
+          const rec: CollegeRecommendation = {
+              collegeName: college.name,
+              branch: displayBranchName,
+              cutoff2025: best2025.range,
+              cutoff2024: best2024.range,
+              chance,
+              location: college.name.includes("Bangalore") ? "Bangalore" : "Karnataka",
+              isPure // Add flag for sorting
+          };
+          seenColleges.set(uniqueKey, rec);
+          recommendations.push(rec);
+        }
     });
   });
 
-  // Sort by priority range (+/- 2000) then by closeness to rank
-  // Note: Since we are using ranges now, the sorting logic uses the 'min' value of the range found
+  // Sort: Pure branches first, then by chance (High > Medium > Low), then by closeness to rank
   return recommendations.sort((a, b) => {
      // Helper to parse min value from string "1000 - 2000" or "1000"
      const getMin = (rangeStr: string) => {
@@ -149,29 +442,56 @@ export const findMatchingColleges = (
         const parts = rangeStr.split(' - ');
         return parseInt(parts[0]);
      };
+     
+     // Priority 1: Pure branches first
+     const aIsPure = (a as any).isPure ? 1 : 0;
+     const bIsPure = (b as any).isPure ? 1 : 0;
+     if (aIsPure !== bIsPure) return bIsPure - aIsPure; // Pure first
+     
+     // Priority 2: Higher chance first
+     const chanceOrder = { 'High': 0, 'Medium': 1, 'Low': 2 };
+     const chanceDiff = chanceOrder[a.chance] - chanceOrder[b.chance];
+     if (chanceDiff !== 0) return chanceDiff;
 
      const valA = getMin(a.cutoff2025) !== 999999 ? getMin(a.cutoff2025) : getMin(a.cutoff2024);
      const valB = getMin(b.cutoff2025) !== 999999 ? getMin(b.cutoff2025) : getMin(b.cutoff2024);
      
      const diffA = valA - rank;
      const diffB = valB - rank;
-     
-     const priorityRange = 2000;
-     const isPriorityA = Math.abs(diffA) <= priorityRange;
-     const isPriorityB = Math.abs(diffB) <= priorityRange;
-
-     if (isPriorityA && !isPriorityB) return -1;
-     if (!isPriorityA && isPriorityB) return 1;
 
      return Math.abs(diffA) - Math.abs(diffB);
   });
 };
 
-export const getSpecificCollegeCutoff = (collegeName: string, category: string, course: string): any => {
+/**
+ * Get specific college cutoff - uses IndexedDB for fast queries when available
+ */
+export const getSpecificCollegeCutoff = async (collegeName: string, category: string, course: string): Promise<any> => {
+    // Try database first
+    if (useDatabase) {
+      try {
+        const result = await getSpecificCollegeCutoffFast(collegeName, category, course);
+        if (!result.error) {
+          console.log(`[DB Query] College cutoff found in ${result.queryTimeMs}ms`);
+          return result;
+        }
+      } catch (error) {
+        console.warn('Database query failed, falling back to in-memory:', error);
+      }
+    }
+    
+    // Fallback to in-memory
+    return await getSpecificCollegeCutoffLegacy(collegeName, category, course);
+};
+
+/**
+ * Legacy in-memory college cutoff lookup (fallback)
+ */
+const getSpecificCollegeCutoffLegacy = async (collegeName: string, category: string, course: string): Promise<any> => {
     const searchName = normalizeForSearch(collegeName);
     const normCat = normalizeCategory(category);
     
-    const data = KCET_DATA as KcetData;
+    const data = await getKCETData();
     const college = Object.values(data.colleges).find(c => normalizeForSearch(c.name).includes(searchName));
     
     if (!college) return { error: `College '${collegeName}' not found.` };
@@ -213,25 +533,25 @@ export const toolsDeclaration: any[] = [
       },
       {
         name: "find_matching_colleges",
-        description: "Finds colleges based on rank, category, course (e.g., 'CS', 'EC'), and location.",
+        description: "ONLY call this tool when user EXPLICITLY asks for college recommendations/list with specific rank. DO NOT call this for general questions about a college (like 'tell me about RV University'). Use ONLY when user says things like: 'find colleges for rank 5000', 'show me colleges', 'what colleges can I get with rank X', 'update my list with rank X'. Finds colleges based on rank, category, course and location.",
         parameters: {
           type: "OBJECT",
           properties: {
-            rank: { type: "NUMBER", description: "Student's rank" },
+            rank: { type: "NUMBER", description: "Student's KCET rank - ONLY use when user provides a specific rank" },
             category: { type: "STRING", description: "Student's category (e.g., GM, 2AG, 3BG)" },
-            course: { type: "STRING", description: "Preferred branch code or name (e.g. 'CS' for Computer Science, 'EC' for Electronics)" },
-            location: { type: "STRING", description: "Preferred location (e.g., Bangalore)" }
+            course: { type: "STRING", description: "Preferred branch codes or names, comma-separated for multiple (e.g. 'CS' or 'CS,ME,AIML' for multiple courses)" },
+            location: { type: "STRING", description: "Preferred locations, comma-separated for multiple (e.g., 'Bangalore' or 'Bangalore,Mysore')" }
           },
           required: ["rank", "category", "course", "location"]
         }
       },
       {
         name: "get_specific_college_cutoff",
-        description: "Gets the cutoff for a specific college for 2024 and 2025.",
+        description: "Gets cutoff information for a SPECIFIC college. Use this when user asks about a particular college like 'tell me about RV College', 'what is the cutoff for BMS', 'can I get into PES with my rank'. This does NOT update the college list UI.",
         parameters: {
           type: "OBJECT",
           properties: {
-            collegeName: { type: "STRING", description: "Name of the college (e.g., 'RV College', 'BMS')" },
+            collegeName: { type: "STRING", description: "Name of the college (e.g., 'RV College', 'BMS', 'PES University')" },
             category: { type: "STRING", description: "Student category" },
             course: { type: "STRING", description: "Course branch" }
           },

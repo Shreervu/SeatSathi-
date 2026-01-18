@@ -1,13 +1,6 @@
-/**
- * Database Population Script
- * Migrates all KCET data from TypeScript files to IndexedDB
- * Uses lazy loading to prevent blocking the initial page render
- */
-
 import { db, CollegeRecord, BranchRecord, CutoffRecord, extractLocation, getLocationKeywords, normalizeBranchName } from './database';
 import { KcetData } from '../types';
 
-// Lazy load college data only when needed
 async function loadKCETData() {
   const { loadKCETData: lazyLoad } = await import('../KCETcutoffdata/collegeDataLazy');
   return lazyLoad();
@@ -118,7 +111,7 @@ export async function populateDatabase(): Promise<{ success: boolean; stats: { c
 
 // Data version - increment this when KCET_DATA changes significantly
 // This forces a database repopulation on the client side
-const DATA_VERSION = 2; // Incremented for E285 2025 data update
+const DATA_VERSION = 3; // Incremented again to force repopulate E285 2025 data
 const VERSION_KEY = 'kcet_data_version';
 
 /**

@@ -1,20 +1,3 @@
-/**
- * Firebase Configuration
- * 
- * SETUP INSTRUCTIONS:
- * 1. Go to https://console.firebase.google.com
- * 2. Create a new project (or use existing)
- * 3. Enable Authentication > Sign-in method > Email/Password AND Google
- * 4. Copy your Firebase config from Project Settings > Your apps > Web app
- * 5. Create a .env.local file and add:
- *    VITE_FIREBASE_API_KEY=your_api_key
- *    VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
- *    VITE_FIREBASE_PROJECT_ID=your_project_id
- *    VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
- *    VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
- *    VITE_FIREBASE_APP_ID=your_app_id
- */
-
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -39,7 +22,6 @@ import {
   Timestamp
 } from 'firebase/firestore';
 
-// Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
@@ -49,12 +31,10 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
 };
 
-// Check if Firebase is configured
 export const isFirebaseConfigured = () => {
   return !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 };
 
-// Initialize Firebase (only if configured)
 let app: any = null;
 let auth: any = null;
 let db: any = null;
@@ -67,8 +47,6 @@ if (isFirebaseConfigured()) {
   googleProvider = new GoogleAuthProvider();
 }
 
-// ============= Auth Functions =============
-
 export interface AuthUser {
   uid: string;
   email: string | null;
@@ -80,7 +58,6 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
   if (!auth) throw new Error('Firebase not configured');
   const result = await createUserWithEmailAndPassword(auth, email, password);
   
-  // Update display name if provided
   if (displayName && result.user) {
     try {
       await updateProfile(result.user, { displayName });
@@ -89,7 +66,6 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
     }
   }
   
-  // Create user profile in Firestore
   await createUserProfile(result.user);
   
   return {
@@ -150,8 +126,6 @@ export const onAuthChange = (callback: (user: AuthUser | null) => void): (() => 
     }
   });
 };
-
-// ============= User Profile & Chat Storage =============
 
 export interface ChatMessage {
   role: 'user' | 'agent' | 'system';
@@ -274,40 +248,32 @@ export const getUserSavedLists = async (userId: string): Promise<any[]> => {
   return [];
 };
 
-// Auto-save current session list (separate from named saved lists)
-export const saveCurrentList = async (
-  userId: string, 
-  colleges: any[]
-): Promise<void> => {
+// Save current working list for a user
+export const saveCurrentList = async (userId: string, colleges: any[]): Promise<void> => {
   if (!db) throw new Error('Firebase not configured');
   
   const userRef = doc(db, 'users', userId);
   
   await updateDoc(userRef, {
-    currentSessionList: {
-      colleges,
-      savedAt: new Date().toISOString()
-    },
+    currentList: colleges,
     lastActive: serverTimestamp()
   });
 };
 
-export const getCurrentList = async (userId: string): Promise<any[] | null> => {
-  if (!db) return null;
+// Get current working list for a user
+export const getCurrentList = async (userId: string): Promise<any[]> => {
+  if (!db) return [];
   
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
   
   if (userSnap.exists()) {
     const data = userSnap.data();
-    return data.currentSessionList?.colleges || null;
+    return data.currentList || [];
   }
   
-  return null;
+  return [];
 };
-
-// ============= Local Storage Fallback =============
-// For users who don't want to login
 
 export const saveSessionToLocal = (session: ChatSession): void => {
   const sessions = getLocalSessions();

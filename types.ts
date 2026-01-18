@@ -6,6 +6,12 @@ export interface CollegeRecommendation {
   cutoff2024: string; // Changed to string
   chance: 'High' | 'Medium' | 'Low';
   location: string;
+  // Optional fields for multi-search tracking
+  searchCourse?: string;
+  searchLocation?: string;
+  // Optional fields for additional data
+  isPure?: boolean;
+  collegeCode?: string;
 }
 
 export type VisualizerState = 'idle' | 'listening' | 'speaking' | 'processing';

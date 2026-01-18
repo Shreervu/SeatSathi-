@@ -1,8 +1,3 @@
-/**
- * PDF Export Service
- * Generates professional PDF reports for college recommendations
- */
-
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CollegeRecommendation } from '../types';
