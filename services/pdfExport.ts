@@ -146,7 +146,7 @@ export const exportToPDF = (
       4: { cellWidth: 25, halign: 'center' },
       5: { cellWidth: 18, halign: 'center' }
     },
-    didParseCell: function(data) {
+    didParseCell: function(data: any) {
       // Color-code chance column
       if (data.column.index === 5 && data.section === 'body') {
         const chance = data.cell.raw as string;

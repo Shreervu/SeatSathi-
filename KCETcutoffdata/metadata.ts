@@ -1,7 +1,10 @@
-export const metadata = {
-  name: "SeatSathi",
-  description: "KCET Cutoff Data for 2024 and 2025",
-  years: ["2024", "2025"],
-  rounds: ["R1", "R2", "R3"],
-  lastUpdated: "2025-12-01"
+import { Metadata } from './types';
+
+export const metadata: Metadata = {
+  extracted_at: "2025-12-01",
+  total_entries: 0,
+  years: [2024, 2025],
+  rounds: [1, 2, 3],
+  categories: ['1G', '1K', '1R', '2AG', '2AK', '2AR', '2BG', '2BK', '2BR', '3AG', '3AK', '3AR', '3BG', '3BK', '3BR', 'GM', 'GMK', 'GMP', 'GMR', 'NRI', 'OPN', 'OTH', 'SCG', 'SCK', 'SCR', 'STG', 'STK', 'STR'],
+  files_processed: []
 };

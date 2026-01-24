@@ -34,15 +34,15 @@ export async function findMatchingCollegesFast(
     cutoffs = await db.cutoffs
       .where('branchCategory')
       .anyOf(courseCategories)
-      .and(record => record.location === normLoc || record.location.includes(normLoc) || normLoc.includes(record.location))
-      .and(record => record.category === normCat)
+      .and((record: CutoffRecord) => record.location === normLoc || record.location.includes(normLoc) || normLoc.includes(record.location))
+      .and((record: CutoffRecord) => record.category === normCat)
       .toArray();
   } else {
     // Just filter by course and category
     cutoffs = await db.cutoffs
       .where('branchCategory')
       .anyOf(courseCategories)
-      .and(record => record.category === normCat)
+      .and((record: CutoffRecord) => record.category === normCat)
       .toArray();
   }
   
@@ -172,8 +172,8 @@ export async function getSpecificCollegeCutoffFast(
   const cutoffs = await db.cutoffs
     .where('branchCategory')
     .anyOf(courseCategories)
-    .and(record => record.collegeName.toLowerCase().includes(searchName))
-    .and(record => record.category === normCat)
+    .and((record: CutoffRecord) => record.collegeName.toLowerCase().includes(searchName))
+    .and((record: CutoffRecord) => record.category === normCat)
     .toArray();
   
   if (cutoffs.length === 0) {
